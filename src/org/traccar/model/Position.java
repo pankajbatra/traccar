@@ -15,6 +15,8 @@
  */
 package org.traccar.model;
 
+import org.traccar.helper.Log;
+
 import java.util.Date;
 
 /**
@@ -56,7 +58,13 @@ public class Position extends Data {
     }
 
     public void setTime(Date time) {
-        this.time = time;
+        Date current = new Date();
+        if (time.after(current) || ((current.getTime()-time.getTime())>60*1000)) {
+            Log.warning("Invalid time sent by "+getId()+" : "+getDeviceId()+", Server:"+current+" Client:"+time);
+            this.time = current;
+        }
+        else
+            this.time = time;
     }
 
     /**
