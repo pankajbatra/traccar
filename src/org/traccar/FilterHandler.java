@@ -126,12 +126,12 @@ public class FilterHandler extends OneToOneDecoder {
         boolean result =
                 filterInvalid(p) ||
                 filterZero(p) ||
-                filterDuplicate(p) ||
-                filterDistance(p);
+                filterDuplicate(p);
         
-        if (filterLimit(p)) {
+        if (!result && (filterLimit(p) || !filterDistance(p))) {
             result = false;
         }
+        else result = true;
         
         if (!result) {
             lastPositions.put(p.getDeviceId(), p);
