@@ -76,6 +76,7 @@ public class TrackerEventHandler extends IdleStateAwareChannelHandler {
         }
         if (id != null && lastPostition != null) {
             try {
+                dataManager.sendGcmMessage(lastPostition);
                 dataManager.updateLatestPosition(lastPostition, id);
             } catch (Exception error) {
                 Log.warning(error);

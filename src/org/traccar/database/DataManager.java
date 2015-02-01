@@ -15,12 +15,17 @@
  */
 package org.traccar.database;
 
+import com.google.android.gcm.server.Message;
+import com.google.android.gcm.server.Sender;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.io.File;
+import java.io.IOException;
 import java.io.StringReader;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.sql.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import javax.sql.DataSource;
 import javax.xml.xpath.XPath;
@@ -40,6 +45,7 @@ public class DataManager {
     public DataManager(Properties properties) throws Exception {
         if (properties != null) {
             initDatabase(properties);
+            initGcm(properties);
             
             // Refresh delay
             String refreshDelay = properties.getProperty("database.refreshDelay");
@@ -57,12 +63,16 @@ public class DataManager {
         return dataSource;
     }
 
+    private Sender gcmSender;
+
     /**
      * Database statements
      */
     private NamedParameterStatement queryGetDevices;
     private NamedParameterStatement queryAddPosition;
     private NamedParameterStatement queryUpdateLatestPosition;
+    private NamedParameterStatement queryGetGcmIds;
+    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("d/MM/yyyy h:mm:ssa");
 
     /**
      * Initialize database
@@ -113,13 +123,35 @@ public class DataManager {
         }
     }
 
+    private void initGcm(Properties properties) throws Exception {
+        String enableGcm = properties.getProperty("gcm.enable");
+        String gcmApiKey = properties.getProperty("gcm.apiKey");
+        String query = properties.getProperty("database.getGcmIds");
+        if (enableGcm != null && Boolean.valueOf(enableGcm) && gcmApiKey!=null && gcmApiKey.length()>10 && query != null) {
+            gcmSender = new Sender(gcmApiKey);
+            queryGetGcmIds = new NamedParameterStatement(query, dataSource);
+        }
+    }
+
     private final NamedParameterStatement.ResultSetProcessor<Device> deviceResultSetProcessor = new NamedParameterStatement.ResultSetProcessor<Device>() {
         @Override
         public Device processNextRow(ResultSet rs) throws SQLException {
             Device device = new Device();
             device.setId(rs.getLong("id"));
             device.setImei(rs.getString("imei"));
+            ResultSetMetaData metaData = rs.getMetaData();
+            if(metaData.getColumnCount()>2 && metaData.getColumnLabel(3).equals("uid")){
+                device.setUniqueId(rs.getString("uid"));
+            }
             return device;
+        }
+    };
+
+    private final NamedParameterStatement.ResultSetProcessor<String> gcmResultSetProcessor =
+            new NamedParameterStatement.ResultSetProcessor<String>() {
+        @Override
+        public String processNextRow(ResultSet rs) throws SQLException {
+            return rs.getString(1);
         }
     };
 
@@ -131,10 +163,34 @@ public class DataManager {
         }
     }
 
+    public void sendGcmMessage(Position position) throws SQLException, IOException {
+        if (queryGetGcmIds != null && getDeviceById(position.getDeviceId())!=null) {
+            List<String> gcmIds = assignGcmVariables(queryGetGcmIds.prepare(), position).executeQuery(gcmResultSetProcessor);
+            if(gcmIds.size()>0){
+                Message message = new Message.Builder()
+                        .collapseKey("gps_data")
+                        .timeToLive(600)
+                        .addData("uid", String.valueOf(getDeviceById(position.getDeviceId()).getUniqueId()))
+                        .addData("latitude", String.valueOf(position.getLatitude()))
+                        .addData("longitude", String.valueOf(position.getLongitude()))
+                        .addData("time", DATE_FORMAT.format(position.getTime()))
+                        .build();
+                gcmSender.send(message, gcmIds, 1);
+            }
+        }
+
+    }
+
+    private NamedParameterStatement.Params assignGcmVariables(NamedParameterStatement.Params params, Position position) throws SQLException {
+        params.setLong("device_id", position.getDeviceId());
+        return params;
+    }
+
     /**
      * Devices cache
      */
     private Map<String, Device> devices;
+    private Map<Long, Device> deviceIdMap;
     private Calendar devicesLastUpdate;
     private long devicesRefreshDelay;
     private static final long DEFAULT_REFRESH_DELAY = 300;
@@ -144,13 +200,19 @@ public class DataManager {
         if (devices == null || !devices.containsKey(imei) ||
                 (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
             devices = new HashMap<String, Device>();
+            deviceIdMap = new HashMap<Long, Device>();
             for (Device device : getDevices()) {
                 devices.put(device.getImei(), device);
+                deviceIdMap.put(device.getId(), device);
             }
             devicesLastUpdate = Calendar.getInstance();
         }
 
         return devices.get(imei);
+    }
+
+    public Device getDeviceById(Long id){
+        return deviceIdMap.get(id);
     }
 
     private NamedParameterStatement.ResultSetProcessor<Long> generatedKeysResultSetProcessor = new NamedParameterStatement.ResultSetProcessor<Long>() {
