@@ -59,8 +59,8 @@ public class Position extends Data {
 
     public void setTime(Date time) {
         Date current = new Date();
-        if (time.after(current) || ((current.getTime()-time.getTime())>60*1000)) {
-            Log.warning("Invalid time sent by "+getId()+" : "+getDeviceId()+", Server:"+current+" Client:"+time);
+        if (Math.abs(current.getTime()-time.getTime())>60*1000) {
+            Log.warning("Invalid time sent by deviceId:"+getDeviceId()+", Server:"+current+" Client:"+time);
             this.time = current;
         }
         else

@@ -16,6 +16,7 @@
 package org.traccar.database;
 
 import com.google.android.gcm.server.Message;
+import com.google.android.gcm.server.MulticastResult;
 import com.google.android.gcm.server.Sender;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.io.File;
@@ -129,7 +130,9 @@ public class DataManager {
         String query = properties.getProperty("database.getGcmIds");
         if (enableGcm != null && Boolean.valueOf(enableGcm) && gcmApiKey!=null && gcmApiKey.length()>10 && query != null) {
             gcmSender = new Sender(gcmApiKey);
+            Log.info("Created GCM Sender");
             queryGetGcmIds = new NamedParameterStatement(query, dataSource);
+            Log.info("GCM Id query: "+queryGetGcmIds);
         }
     }
 
@@ -175,7 +178,9 @@ public class DataManager {
                         .addData("longitude", String.valueOf(position.getLongitude()))
                         .addData("time", DATE_FORMAT.format(position.getTime()))
                         .build();
-                gcmSender.send(message, gcmIds, 1);
+                Log.info("Sending GCM message:"+message.getData()+" to gcmIds: "+gcmIds);
+                MulticastResult result = gcmSender.send(message, gcmIds, 1);
+                Log.info("GCM Server Response:"+result.toString());
             }
         }
 
