@@ -239,7 +239,7 @@ public class DataManager {
         }
         if (position.getTime().getTime()!=position.getStartTime().getTime() && queryUpdatePosition != null){
             Log.warning("Updating existing record instead of creating.");
-            assignVariables(queryUpdatePosition.prepare(), position).executeUpdate();
+            assignVariables(queryUpdatePosition.prepare(), position).setLong("database_id", position.getDatabaseId()).executeUpdate();
             return position.getDatabaseId();
         }
         else if (queryAddPosition != null) {
