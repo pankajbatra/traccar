@@ -52,19 +52,26 @@ public class Position extends Data {
      * Time (UTC)
      */
     private Date time;
+    private Date startTime;
 
     public Date getTime() {
         return time;
     }
 
+    public Date getStartTime() {
+        return startTime;
+    }
+
     public void setTime(Date time) {
         Date current = new Date();
-        if (Math.abs(current.getTime()-time.getTime())>60*1000) {
+        if (time.getTime()> current.getTime() || Math.abs(current.getTime()-time.getTime())>60*1000) {
             Log.info("Invalid time sent by deviceId:"+getDeviceId()+", Server:"+current+" Client:"+time);
             this.time = current;
         }
         else
             this.time = time;
+        if(startTime==null)
+            startTime = this.time;
     }
 
     /**

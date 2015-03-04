@@ -71,6 +71,7 @@ public class DataManager {
      */
     private NamedParameterStatement queryGetDevices;
     private NamedParameterStatement queryAddPosition;
+    private NamedParameterStatement queryUpdatePosition;
     private NamedParameterStatement queryUpdateLatestPosition;
     private NamedParameterStatement queryGetGcmIds;
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("d/MM/yyyy h:mm:ssa");
@@ -116,6 +117,11 @@ public class DataManager {
         query = properties.getProperty("database.insertPosition");
         if (query != null) {
             queryAddPosition = new NamedParameterStatement(query, dataSource, Statement.RETURN_GENERATED_KEYS);
+        }
+
+        query = properties.getProperty("database.updatePosition");
+        if (query != null) {
+            queryUpdatePosition = new NamedParameterStatement(query, dataSource);
         }
 
         query = properties.getProperty("database.updateLatestPosition");
@@ -228,7 +234,10 @@ public class DataManager {
     };
 
     public synchronized Long addPosition(Position position) throws SQLException {
-        if (queryAddPosition != null) {
+        if (position.getTime().getTime()!=position.getStartTime().getTime() && queryUpdatePosition != null){
+            assignVariables(queryUpdatePosition.prepare(), position).executeUpdate();
+        }
+        else if (queryAddPosition != null) {
             List<Long> result = assignVariables(queryAddPosition.prepare(), position).executeUpdate(generatedKeysResultSetProcessor);
             if (result != null && !result.isEmpty()) {
                 return result.iterator().next();

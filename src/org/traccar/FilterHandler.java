@@ -134,7 +134,13 @@ public class FilterHandler extends OneToOneDecoder {
         else result = true;
         
         if (!result) {
-            lastPositions.put(p.getDeviceId(), p);
+            if(filterDistance(p)){
+                //update existing record
+                Position last = lastPositions.get(p.getDeviceId());
+                last.setTime(p.getTime());
+            }
+            else
+                lastPositions.put(p.getDeviceId(), p);
         } else {
             StringBuilder s = new StringBuilder();
             Log.info("Position filtered from " + p.getDeviceId());
