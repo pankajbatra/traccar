@@ -234,13 +234,20 @@ public class DataManager {
     };
 
     public synchronized Long addPosition(Position position) throws SQLException {
+        if (position.getTime().getTime()!=position.getStartTime().getTime()){
+            Log.warning("Start and end time different on position, should update instead of create.");
+        }
         if (position.getTime().getTime()!=position.getStartTime().getTime() && queryUpdatePosition != null){
+            Log.warning("Updating existing record instead of creating.");
             assignVariables(queryUpdatePosition.prepare(), position).executeUpdate();
+            return position.getDatabaseId();
         }
         else if (queryAddPosition != null) {
             List<Long> result = assignVariables(queryAddPosition.prepare(), position).executeUpdate(generatedKeysResultSetProcessor);
             if (result != null && !result.isEmpty()) {
-                return result.iterator().next();
+                long databaseId = result.iterator().next();
+                position.setDatabaseId(databaseId);
+                return databaseId;
             }
         }
         return null;

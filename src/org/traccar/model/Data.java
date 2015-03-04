@@ -38,6 +38,19 @@ public class Data {
     /**
      * Device
      */
+    private Long databaseId;
+
+    public Long getDatabaseId() {
+        return databaseId;
+    }
+
+    public void setDatabaseId(Long databaseId) {
+        this.databaseId = databaseId;
+    }
+
+    /**
+     * Device
+     */
     private Long deviceId;
 
     public Long getDeviceId() {
