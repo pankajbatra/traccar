@@ -62,6 +62,23 @@ public class Position extends Data {
         return startTime;
     }
 
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
+    }
+
+    /**
+     * Database ID
+     */
+    private Long databaseId;
+
+    public Long getDatabaseId() {
+        return databaseId;
+    }
+
+    public void setDatabaseId(Long databaseId) {
+        this.databaseId = databaseId;
+    }
+
     public void setTime(Date time) {
         Date current = new Date();
         if (time.getTime()> current.getTime() || Math.abs(current.getTime()-time.getTime())>60*1000) {

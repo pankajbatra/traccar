@@ -35,18 +35,7 @@ public class Data {
         this.id = id;
     }
 
-    /**
-     * Device
-     */
-    private Long databaseId;
 
-    public Long getDatabaseId() {
-        return databaseId;
-    }
-
-    public void setDatabaseId(Long databaseId) {
-        this.databaseId = databaseId;
-    }
 
     /**
      * Device
