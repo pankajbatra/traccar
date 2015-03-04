@@ -235,10 +235,10 @@ public class DataManager {
 
     public synchronized Long addPosition(Position position) throws SQLException {
         if (position.getTime().getTime()!=position.getStartTime().getTime()){
-            Log.warning("Start and end time different on position, should update instead of create.");
+            Log.info("Start and end time different on position, should update instead of create.");
         }
         if (position.getTime().getTime()!=position.getStartTime().getTime() && queryUpdatePosition != null){
-            Log.warning("Updating existing record instead of creating.");
+            Log.info("Updating existing record instead of creating.");
             assignVariables(queryUpdatePosition.prepare(), position).setLong("database_id", position.getDatabaseId()).executeUpdate();
             return position.getDatabaseId();
         }

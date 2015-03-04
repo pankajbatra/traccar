@@ -135,7 +135,7 @@ public class FilterHandler extends OneToOneDecoder {
         
         if (!result) {
             if(filterDistance(p)){
-                Log.warning("Distance has not changed, update existing record.");
+                Log.info("Distance has not changed, update existing record.");
                 //update existing record
                 Position last = lastPositions.get(p.getDeviceId());
                 p.setStartTime(last.getStartTime());
