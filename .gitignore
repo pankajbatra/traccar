@@ -1,0 +1,23 @@
+# Created by .ignore support plugin (hsz.mobi)
+
+# Java class files
+*.class
+
+# generated files
+target/
+
+# Windows thumbnail db
+Thumbs.db
+
+# OSX files
+.DS_Store
+
+# Eclipse project files
+.classpath
+.project
+
+# Android Studio project files
+*.iml
+*.ipr
+*.iws
+.idea/
