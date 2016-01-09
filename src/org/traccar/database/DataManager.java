@@ -277,7 +277,7 @@ public class DataManager {
                 if (message != null) {
                     devices.clear();
                     deviceIdMap.clear();
-                    Log.warning("Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
+                    Log.info("Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
                 }
             } catch (JMSException e) {
                 Log.warning(e.getMessage(), e);
@@ -298,14 +298,14 @@ public class DataManager {
 
         if (devices == null || !devices.containsKey(imei) ||
                 (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
-            Log.warning("Refreshing Devices map: " + new Date());
+            Log.info("Refreshing Devices map: " + new Date());
             devices = new HashMap<String, Device>();
             deviceIdMap = new HashMap<Long, Device>();
             for (Device device : getDevices()) {
                 devices.put(device.getImei(), device);
                 deviceIdMap.put(device.getId(), device);
                 if(device.getId()==8 || device.getId()==252)
-                    Log.warning("Device : "+device.getId() + " : "+device.getImei() + " : "+device.getUniqueId());
+                    Log.info("Device : "+device.getId() + " : "+device.getImei() + " : "+device.getUniqueId());
             }
             devicesLastUpdate = Calendar.getInstance();
         }
