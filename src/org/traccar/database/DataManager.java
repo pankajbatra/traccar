@@ -276,7 +276,8 @@ public class DataManager {
                 // Cast the received message as TextMessage and print the text to screen.
                 if (message != null) {
                     devices.clear();
-                    Log.warning("Received message to clear devices cache "+((TextMessage) message).getText()+ " at: " + new Date());
+                    deviceIdMap.clear();
+                    Log.warning("Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
                 }
             } catch (JMSException e) {
                 Log.warning(e.getMessage(), e);
@@ -287,10 +288,10 @@ public class DataManager {
     /**
      * Devices cache
      */
-    private Map<String, Device> devices;
-    private Map<Long, Device> deviceIdMap;
-    private Calendar devicesLastUpdate;
-    private long devicesRefreshDelay;
+    private static Map<String, Device> devices;
+    private static Map<Long, Device> deviceIdMap;
+    private static Calendar devicesLastUpdate;
+    private static long devicesRefreshDelay;
     private static final long DEFAULT_REFRESH_DELAY = 300;
 
     public Device getDeviceByImei(String imei) throws SQLException {
@@ -303,6 +304,8 @@ public class DataManager {
             for (Device device : getDevices()) {
                 devices.put(device.getImei(), device);
                 deviceIdMap.put(device.getId(), device);
+                if(device.getId()==8 || device.getId()==252)
+                    Log.warning("Device : "+device.getId() + " : "+device.getImei() + " : "+device.getUniqueId());
             }
             devicesLastUpdate = Calendar.getInstance();
         }
