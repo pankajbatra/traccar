@@ -15,6 +15,13 @@
  */
 package org.traccar.database;
 
+import com.amazon.sqs.javamessaging.AmazonSQSMessagingClientWrapper;
+import com.amazon.sqs.javamessaging.SQSConnection;
+import com.amazon.sqs.javamessaging.SQSConnectionFactory;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.google.android.gcm.server.Message;
 import com.google.android.gcm.server.MulticastResult;
 import com.google.android.gcm.server.Sender;
@@ -28,6 +35,9 @@ import java.sql.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Date;
+import javax.jms.*;
+import javax.jms.Queue;
 import javax.sql.DataSource;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpressionException;
@@ -70,6 +80,8 @@ public class DataManager {
      * Database statements
      */
     private NamedParameterStatement queryGetDevices;
+    private String awsAccessKeyId;
+    private String awsSecretAccessKey;
     private NamedParameterStatement queryAddPosition;
     private NamedParameterStatement queryUpdatePosition;
     private NamedParameterStatement queryUpdateLatestPosition;
@@ -112,6 +124,66 @@ public class DataManager {
         query = properties.getProperty("database.selectDevice");
         if (query != null) {
             queryGetDevices = new NamedParameterStatement(query, dataSource);
+        }
+
+        awsAccessKeyId = properties.getProperty("aws.accessKey");
+        awsSecretAccessKey = properties.getProperty("aws.accessSecret");
+        String awsSQSQueueName = properties.getProperty("aws.queueName");
+
+        if(awsAccessKeyId!=null && awsSecretAccessKey!=null && awsSQSQueueName !=null){
+            // Create the connection factory using the environment variable credential provider.
+            // Connections this factory creates can talk to the queues in us-east-1 region.
+            SQSConnectionFactory connectionFactory =
+                    SQSConnectionFactory.builder()
+                            .withRegion(Region.getRegion(Regions.AP_SOUTHEAST_1))
+                            .withAWSCredentialsProvider(new AWSCredentialsProvider() {
+                                @Override
+                                public AWSCredentials getCredentials() {
+                                    return new AWSCredentials() {
+                                        @Override
+                                        public String getAWSAccessKeyId() {
+                                            return awsAccessKeyId;
+                                        }
+
+                                        @Override
+                                        public String getAWSSecretKey() {
+                                            return awsSecretAccessKey;
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public void refresh() {
+
+                                }
+                            })
+                            .build();
+
+            // Create the connection.
+            SQSConnection connection = connectionFactory.createConnection();
+
+            // Get the wrapped client
+            AmazonSQSMessagingClientWrapper client = connection.getWrappedAmazonSQSClient();
+
+            // Create an SQS queue named 'TestQueue' – if it does not already exist.
+            if (!client.queueExists(awsSQSQueueName)) {
+                client.createQueue(awsSQSQueueName);
+            }
+
+            // Create the non-transacted session with AUTO_ACKNOWLEDGE mode
+            Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+            // Create a queue identity with name 'TestQueue' in the session
+            Queue queue = session.createQueue(awsSQSQueueName);
+
+            // Create a consumer for the 'TestQueue'.
+            MessageConsumer consumer = session.createConsumer(queue);
+
+            // Instantiate and set the message listener for the consumer.
+            consumer.setMessageListener(new AWSSqsMessageListener());
+
+            // Start receiving incoming messages.
+            connection.start();
         }
 
         query = properties.getProperty("database.insertPosition");
@@ -197,6 +269,21 @@ public class DataManager {
         return params;
     }
 
+    class AWSSqsMessageListener implements MessageListener {
+        @Override
+        public void onMessage(javax.jms.Message message) {
+            try {
+                // Cast the received message as TextMessage and print the text to screen.
+                if (message != null) {
+                    devices.clear();
+                    Log.warning("Received message to clear devices cache "+((TextMessage) message).getText()+ " at: " + new Date());
+                }
+            } catch (JMSException e) {
+                Log.warning(e.getMessage(), e);
+            }
+        }
+    }
+
     /**
      * Devices cache
      */
@@ -210,6 +297,7 @@ public class DataManager {
 
         if (devices == null || !devices.containsKey(imei) ||
                 (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
+            Log.warning("Refreshing Devices map: " + new Date());
             devices = new HashMap<String, Device>();
             deviceIdMap = new HashMap<Long, Device>();
             for (Device device : getDevices()) {
