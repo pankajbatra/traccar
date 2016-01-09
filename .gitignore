@@ -4,7 +4,8 @@
 *.class
 
 # generated files
-target/
+target
+nbactions.xml
 
 # Windows thumbnail db
 Thumbs.db
@@ -20,4 +21,8 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
-.idea/
+.settings
+.idea
+web/.idea
+.idea
+traccar.iml
