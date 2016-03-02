@@ -15,6 +15,9 @@
  */
 package org.traccar.database;
 
+import com.amazonaws.services.sns.AmazonSNSClient;
+import com.amazonaws.services.sns.model.PublishRequest;
+import com.amazonaws.services.sns.model.PublishResult;
 import com.amazon.sqs.javamessaging.AmazonSQSMessagingClientWrapper;
 import com.amazon.sqs.javamessaging.SQSConnection;
 import com.amazon.sqs.javamessaging.SQSConnectionFactory;
@@ -25,6 +28,8 @@ import com.amazonaws.regions.Regions;
 import com.google.android.gcm.server.Message;
 import com.google.android.gcm.server.MulticastResult;
 import com.google.android.gcm.server.Sender;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.io.File;
 import java.io.IOException;
@@ -46,6 +51,7 @@ import org.traccar.helper.DriverDelegate;
 import org.traccar.helper.Log;
 import org.traccar.model.Device;
 import org.traccar.model.Position;
+import org.traccar.model.SNSMessage;
 import org.xml.sax.InputSource;
 
 /**
@@ -82,6 +88,8 @@ public class DataManager {
     private NamedParameterStatement queryGetDevices;
     private String awsAccessKeyId;
     private String awsSecretAccessKey;
+    private AmazonSNSClient snsClient;
+    private Gson gson;
     private NamedParameterStatement queryAddPosition;
     private NamedParameterStatement queryUpdatePosition;
     private NamedParameterStatement queryUpdateLatestPosition;
@@ -130,60 +138,68 @@ public class DataManager {
         awsSecretAccessKey = properties.getProperty("aws.accessSecret");
         String awsSQSQueueName = properties.getProperty("aws.queueName");
 
-        if(awsAccessKeyId!=null && awsSecretAccessKey!=null && awsSQSQueueName !=null){
-            // Create the connection factory using the environment variable credential provider.
-            // Connections this factory creates can talk to the queues in us-east-1 region.
-            SQSConnectionFactory connectionFactory =
-                    SQSConnectionFactory.builder()
-                            .withRegion(Region.getRegion(Regions.AP_SOUTHEAST_1))
-                            .withAWSCredentialsProvider(new AWSCredentialsProvider() {
-                                @Override
-                                public AWSCredentials getCredentials() {
-                                    return new AWSCredentials() {
-                                        @Override
-                                        public String getAWSAccessKeyId() {
-                                            return awsAccessKeyId;
-                                        }
+        if(awsAccessKeyId!=null && awsSecretAccessKey!=null) {
+            AWSCredentialsProvider credentialsProvider = new AWSCredentialsProvider() {
+                @Override
+                public AWSCredentials getCredentials() {
+                    return new AWSCredentials() {
+                        @Override
+                        public String getAWSAccessKeyId() {
+                            return awsAccessKeyId;
+                        }
 
-                                        @Override
-                                        public String getAWSSecretKey() {
-                                            return awsSecretAccessKey;
-                                        }
-                                    };
-                                }
+                        @Override
+                        public String getAWSSecretKey() {
+                            return awsSecretAccessKey;
+                        }
+                    };
+                }
 
-                                @Override
-                                public void refresh() {
+                @Override
+                public void refresh() {
 
-                                }
-                            })
-                            .build();
+                }
+            };
+            snsClient = new AmazonSNSClient(credentialsProvider);
+            snsClient.setRegion(Region.getRegion(Regions.AP_SOUTHEAST_1));
+            GsonBuilder builder = new GsonBuilder();
+            gson = builder.create();
 
-            // Create the connection.
-            SQSConnection connection = connectionFactory.createConnection();
+            if (awsSQSQueueName != null) {
+                // Create the connection factory using the environment variable credential provider.
+                // Connections this factory creates can talk to the queues in us-east-1 region.
+                SQSConnectionFactory connectionFactory =
+                        SQSConnectionFactory.builder()
+                                .withRegion(Region.getRegion(Regions.AP_SOUTHEAST_1))
+                                .withAWSCredentialsProvider(credentialsProvider)
+                                .build();
 
-            // Get the wrapped client
-            AmazonSQSMessagingClientWrapper client = connection.getWrappedAmazonSQSClient();
+                // Create the connection.
+                SQSConnection connection = connectionFactory.createConnection();
 
-            // Create an SQS queue named 'TestQueue' – if it does not already exist.
-            if (!client.queueExists(awsSQSQueueName)) {
-                client.createQueue(awsSQSQueueName);
+                // Get the wrapped client
+                AmazonSQSMessagingClientWrapper client = connection.getWrappedAmazonSQSClient();
+
+                // Create an SQS queue named 'TestQueue' – if it does not already exist.
+                if (!client.queueExists(awsSQSQueueName)) {
+                    client.createQueue(awsSQSQueueName);
+                }
+
+                // Create the non-transacted session with AUTO_ACKNOWLEDGE mode
+                Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+                // Create a queue identity with name 'TestQueue' in the session
+                Queue queue = session.createQueue(awsSQSQueueName);
+
+                // Create a consumer for the 'TestQueue'.
+                MessageConsumer consumer = session.createConsumer(queue);
+
+                // Instantiate and set the message listener for the consumer.
+                consumer.setMessageListener(new AWSSqsMessageListener());
+
+                // Start receiving incoming messages.
+                connection.start();
             }
-
-            // Create the non-transacted session with AUTO_ACKNOWLEDGE mode
-            Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-
-            // Create a queue identity with name 'TestQueue' in the session
-            Queue queue = session.createQueue(awsSQSQueueName);
-
-            // Create a consumer for the 'TestQueue'.
-            MessageConsumer consumer = session.createConsumer(queue);
-
-            // Instantiate and set the message listener for the consumer.
-            consumer.setMessageListener(new AWSSqsMessageListener());
-
-            // Start receiving incoming messages.
-            connection.start();
         }
 
         query = properties.getProperty("database.insertPosition");
@@ -224,6 +240,9 @@ public class DataManager {
             if(metaData.getColumnCount()>2 && metaData.getColumnLabel(3).equals("uid")){
                 device.setUniqueId(rs.getString("uid"));
             }
+            if(metaData.getColumnCount()>3 && metaData.getColumnLabel(4).equals("topic")){
+                device.setSnsTopicName(rs.getString("topic"));
+            }
             return device;
         }
     };
@@ -261,7 +280,18 @@ public class DataManager {
                 Log.info("GCM Server Response:"+result.toString());
             }
         }
+    }
 
+    public void sendSnsMessage(Position position) throws SQLException, IOException {
+        Device device = getDeviceById(position.getDeviceId());
+        if (device!=null && device.getSnsTopicName()!=null && !device.getSnsTopicName().equals("")) {
+            //publish to an SNS topic
+            String msg = gson.toJson(SNSMessage.fromPosition(position, device.getImei()));
+            Log.info("Sending SNS message:"+msg+" to topic: "+device.getSnsTopicName());
+            PublishRequest publishRequest = new PublishRequest(device.getSnsTopicName(), msg);
+            PublishResult publishResult = snsClient.publish(publishRequest);
+            Log.info("SNS Message id:"+publishResult.getMessageId());
+        }
     }
 
     private NamedParameterStatement.Params assignGcmVariables(NamedParameterStatement.Params params, Position position) throws SQLException {
@@ -362,6 +392,8 @@ public class DataManager {
         params.setDouble("course", position.getCourse());
         params.setString("address", position.getAddress());
         params.setString("extended_info", position.getExtendedInfo());
+        Device device = getDeviceById(position.getDeviceId());
+        params.setString("gps_imei", device!=null? device.getImei() : null);
 
         // DELME: Temporary compatibility support
         XPath xpath = XPathFactory.newInstance().newXPath();

@@ -72,4 +72,13 @@ public class Device {
         this.uniqueId = uniqueId;
     }
 
+    private String snsTopicName;
+
+    public String getSnsTopicName() {
+        return snsTopicName;
+    }
+
+    public void setSnsTopicName(String snsTopicName) {
+        this.snsTopicName = snsTopicName;
+    }
 }

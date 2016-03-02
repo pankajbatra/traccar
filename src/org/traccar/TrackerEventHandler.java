@@ -54,6 +54,10 @@ public class TrackerEventHandler extends IdleStateAwareChannelHandler {
         Long id = null;
         try {
             id = dataManager.addPosition(position);
+            if(id!=null) {
+                dataManager.sendGcmMessage(position);
+                dataManager.sendSnsMessage(position);
+            }
         } catch (Exception error) {
             Log.warning(error);
         }
@@ -76,7 +80,6 @@ public class TrackerEventHandler extends IdleStateAwareChannelHandler {
         }
         if (id != null && lastPostition != null) {
             try {
-                dataManager.sendGcmMessage(lastPostition);
                 dataManager.updateLatestPosition(lastPostition, id);
             } catch (Exception error) {
                 Log.warning(error);
