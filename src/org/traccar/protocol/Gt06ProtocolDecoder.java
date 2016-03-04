@@ -147,6 +147,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             Position position = new Position();
             Device device = getDataManager().getDeviceById(deviceId);
             if(device==null || !device.getImei().equals(imei)){
+                Log.warning("Device Id does not match with IMEI: "+deviceId + " : "+imei);
                 deviceId = getDataManager().getDeviceByImei(imei).getId();
             }
             position.setDeviceId(deviceId);
