@@ -305,8 +305,10 @@ public class DataManager {
             try {
                 // Cast the received message as TextMessage and print the text to screen.
                 if (message != null) {
-                    devices.clear();
-                    deviceIdMap.clear();
+                    synchronized(DataManager.class) {
+                        devices.clear();
+                        deviceIdMap.clear();
+                    }
                     Log.info("Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
                 }
             } catch (JMSException e) {
@@ -318,19 +320,18 @@ public class DataManager {
     /**
      * Devices cache
      */
-    private static Map<String, Device> devices;
-    private static Map<Long, Device> deviceIdMap;
+    private static final Map<String, Device> devices = new HashMap<String, Device>();
+    private static final Map<Long, Device> deviceIdMap = new HashMap<Long, Device>();
     private static Calendar devicesLastUpdate;
     private static long devicesRefreshDelay;
     private static final long DEFAULT_REFRESH_DELAY = 300;
 
-    public Device getDeviceByImei(String imei) throws SQLException {
-
-        if (devices == null || !devices.containsKey(imei) ||
+    public synchronized Device getDeviceByImei(String imei) throws SQLException {
+        if (!devices.containsKey(imei) ||
                 (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
             Log.info("Refreshing Devices map: " + new Date());
-            devices = new HashMap<String, Device>();
-            deviceIdMap = new HashMap<Long, Device>();
+            devices.clear();
+            deviceIdMap.clear();
             for (Device device : getDevices()) {
                 devices.put(device.getImei(), device);
                 deviceIdMap.put(device.getId(), device);
