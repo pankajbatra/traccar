@@ -309,7 +309,7 @@ public class DataManager {
                         devices.clear();
                         deviceIdMap.clear();
                     }
-                    Log.info("Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
+                    Log.info(Thread.currentThread().getName()+" : Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
                 }
             } catch (JMSException e) {
                 Log.warning(e.getMessage(), e);
@@ -329,7 +329,7 @@ public class DataManager {
     public synchronized Device getDeviceByImei(String imei) throws SQLException {
         if (!devices.containsKey(imei) ||
                 (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
-            Log.info("Refreshing Devices map: " + new Date());
+            Log.info(Thread.currentThread().getName()+" : Refreshing Devices map: " + new Date());
             devices.clear();
             deviceIdMap.clear();
             for (Device device : getDevices()) {
