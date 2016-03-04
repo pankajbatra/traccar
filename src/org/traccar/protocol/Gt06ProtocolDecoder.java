@@ -23,6 +23,7 @@ import org.traccar.BaseProtocolDecoder;
 import org.traccar.database.DataManager;
 import org.traccar.helper.Crc;
 import org.traccar.helper.Log;
+import org.traccar.model.Device;
 import org.traccar.model.ExtendedInfoFormatter;
 import org.traccar.model.Position;
 
@@ -33,6 +34,7 @@ import java.util.TimeZone;
 public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
     private Long deviceId;
+    private String imei;
     private final TimeZone timeZone = TimeZone.getTimeZone("UTC");
 
     public Gt06ProtocolDecoder(DataManager dataManager, String protocol, Properties properties) {
@@ -110,7 +112,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         
         if (type == MSG_LOGIN) {
 
-            String imei = readImei(buf);
+            imei = readImei(buf);
             buf.readUnsignedShort(); // type
 
             // Timezone offset
@@ -143,6 +145,10 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
             // Create new position
             Position position = new Position();
+            Device device = getDataManager().getDeviceById(deviceId);
+            if(device==null || !device.getImei().equals(imei)){
+                deviceId = getDataManager().getDeviceByImei(imei).getId();
+            }
             position.setDeviceId(deviceId);
             ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter(getProtocol());
 
