@@ -15,13 +15,17 @@
  */
 package org.traccar;
 
+import java.util.Calendar;
 import java.util.Locale;
+
+import org.traccar.database.DataManager;
 import org.traccar.helper.Log;
 
 public class Main {
     
     public static void main(String[] args) throws Exception {
         Locale.setDefault(Locale.ENGLISH);
+        System.setProperty(DataManager.DEVICE_CACHE_UPDATED_AT, String.valueOf(Calendar.getInstance().getTimeInMillis()));
 
         final ServerManager service = new ServerManager();
         service.init(args);

@@ -305,10 +305,9 @@ public class DataManager {
             try {
                 // Cast the received message as TextMessage and print the text to screen.
                 if (message != null) {
-                    synchronized(DataManager.class) {
-                        devices.clear();
-                        deviceIdMap.clear();
-                    }
+                    devices.clear();
+                    deviceIdMap.clear();
+                    System.setProperty(DEVICE_CACHE_UPDATED_AT, String.valueOf(Calendar.getInstance().getTimeInMillis()));
                     Log.info(Thread.currentThread().getName()+" : Received message to clear devices cache " + ((TextMessage) message).getText() + " at: " + new Date());
                 }
             } catch (JMSException e) {
@@ -322,13 +321,15 @@ public class DataManager {
      */
     private static final Map<String, Device> devices = new HashMap<String, Device>();
     private static final Map<Long, Device> deviceIdMap = new HashMap<Long, Device>();
-    private static Calendar devicesLastUpdate;
+    private static Calendar devicesLastUpdate = Calendar.getInstance();
     private static long devicesRefreshDelay;
     private static final long DEFAULT_REFRESH_DELAY = 300;
+    public static final String DEVICE_CACHE_UPDATED_AT = "DEVICE_CACHE_UPDATED_AT";
 
-    public synchronized Device getDeviceByImei(String imei) throws SQLException {
+    public Device getDeviceByImei(String imei) throws SQLException {
         if (!devices.containsKey(imei) ||
-                (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)) {
+                (Calendar.getInstance().getTimeInMillis() - devicesLastUpdate.getTimeInMillis() > devicesRefreshDelay)
+                || Long.parseLong(System.getProperty(DEVICE_CACHE_UPDATED_AT))> devicesLastUpdate.getTimeInMillis()) {
             Log.info(Thread.currentThread().getName()+" : Refreshing Devices map: " + new Date());
             devices.clear();
             deviceIdMap.clear();
