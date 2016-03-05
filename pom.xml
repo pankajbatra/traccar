@@ -8,12 +8,12 @@
     <name>traccar</name>
     <url>http://www.traccar.org</url>
 
-    <!--<repositories>-->
-        <!--<repository>-->
-            <!--<id>gcm-server-repository</id>-->
-            <!--<url>https://raw.githubusercontent.com/slorber/gcm-server-repository/master/releases/</url>-->
-        <!--</repository>-->
-    <!--</repositories>-->
+    <repositories>
+        <repository>
+            <id>gcm-server-repository</id>
+            <url>https://raw.githubusercontent.com/slorber/gcm-server-repository/master/releases/</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>

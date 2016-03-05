@@ -7,15 +7,15 @@ import java.util.Date;
  *
  */
 public class SNSMessage {
-    private Double latitude;
-    private Double longitude;
-    private Double altitude;
-    private Double speed;
-    private Double course;
-    private Double bearing;
-    private Double accuracy;
-    private Date createdAt;
-    private Date updatedAt;
+    private double latitude;
+    private double longitude;
+    private double altitude;
+    private double speed;
+    private double course;
+    private double bearing;
+    private double accuracy;
+    private long createdAt;
+    private long updatedAt;
     private String deviceId;
     private String extendedInfo;
     private String provider;
@@ -27,83 +27,83 @@ public class SNSMessage {
         message.setAltitude(position.getAltitude());
         message.setSpeed(position.getSpeed());
         message.setCourse(position.getCourse());
-        message.setCreatedAt(position.getStartTime());
-        message.setUpdatedAt(position.getTime());
+        message.setCreatedAt(position.getStartTime().getTime());
+        message.setUpdatedAt(position.getTime().getTime());
         message.setExtendedInfo(position.getExtendedInfo());
         message.setDeviceId(imei);
         message.setProvider("gps_tracker");
         return message;
     }
 
-    public Double getLatitude() {
+    public double getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(Double latitude) {
+    public void setLatitude(double latitude) {
         this.latitude = latitude;
     }
 
-    public Double getLongitude() {
+    public double getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(Double longitude) {
+    public void setLongitude(double longitude) {
         this.longitude = longitude;
     }
 
-    public Double getAltitude() {
+    public double getAltitude() {
         return altitude;
     }
 
-    public void setAltitude(Double altitude) {
+    public void setAltitude(double altitude) {
         this.altitude = altitude;
     }
 
-    public Double getSpeed() {
+    public double getSpeed() {
         return speed;
     }
 
-    public void setSpeed(Double speed) {
+    public void setSpeed(double speed) {
         this.speed = speed;
     }
 
-    public Double getCourse() {
+    public double getCourse() {
         return course;
     }
 
-    public void setCourse(Double course) {
+    public void setCourse(double course) {
         this.course = course;
     }
 
-    public Double getBearing() {
+    public double getBearing() {
         return bearing;
     }
 
-    public void setBearing(Double bearing) {
+    public void setBearing(double bearing) {
         this.bearing = bearing;
     }
 
-    public Double getAccuracy() {
+    public double getAccuracy() {
         return accuracy;
     }
 
-    public void setAccuracy(Double accuracy) {
+    public void setAccuracy(double accuracy) {
         this.accuracy = accuracy;
     }
 
-    public Date getCreatedAt() {
+    public long getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(Date createdAt) {
+    public void setCreatedAt(long createdAt) {
         this.createdAt = createdAt;
     }
 
-    public Date getUpdatedAt() {
+    public long getUpdatedAt() {
         return updatedAt;
     }
 
-    public void setUpdatedAt(Date updatedAt) {
+    public void setUpdatedAt(long updatedAt) {
         this.updatedAt = updatedAt;
     }
 
