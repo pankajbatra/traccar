@@ -19,8 +19,9 @@ public class SNSMessage {
     private String deviceId;
     private String extendedInfo;
     private String provider;
+    private String externalId;
 
-    public static SNSMessage fromPosition(Position position, String imei){
+    public static SNSMessage fromPosition(Position position, String imei, String externalId){
         SNSMessage message = new SNSMessage();
         message.setLatitude(position.getLatitude());
         message.setLongitude(position.getLongitude());
@@ -31,8 +32,17 @@ public class SNSMessage {
         message.setUpdatedAt(position.getTime().getTime());
         message.setExtendedInfo(position.getExtendedInfo());
         message.setDeviceId(imei);
+        message.setExternalId(externalId);
         message.setProvider("gps_tracker");
         return message;
+    }
+
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
     }
 
     public double getLatitude() {

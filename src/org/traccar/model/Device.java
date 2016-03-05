@@ -81,4 +81,14 @@ public class Device {
     public void setSnsTopicName(String snsTopicName) {
         this.snsTopicName = snsTopicName;
     }
+
+    private String externalId;
+
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
+    }
 }

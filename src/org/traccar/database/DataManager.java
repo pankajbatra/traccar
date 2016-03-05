@@ -243,6 +243,9 @@ public class DataManager {
             if(metaData.getColumnCount()>3 && metaData.getColumnLabel(4).equals("topic")){
                 device.setSnsTopicName(rs.getString("topic"));
             }
+            if(metaData.getColumnCount()>4 && metaData.getColumnLabel(5).equals("external_id")){
+                device.setExternalId(rs.getString("external_id"));
+            }
             return device;
         }
     };
@@ -286,7 +289,7 @@ public class DataManager {
         Device device = getDeviceById(position.getDeviceId());
         if (device!=null && device.getSnsTopicName()!=null && !device.getSnsTopicName().equals("")) {
             //publish to an SNS topic
-            String msg = gson.toJson(SNSMessage.fromPosition(position, device.getImei()));
+            String msg = gson.toJson(SNSMessage.fromPosition(position, device.getImei(), device.getExternalId()));
             Log.info("Sending SNS message:"+msg+" to topic: "+device.getSnsTopicName());
             PublishRequest publishRequest = new PublishRequest(device.getSnsTopicName(), msg);
             PublishResult publishResult = snsClient.publish(publishRequest);
