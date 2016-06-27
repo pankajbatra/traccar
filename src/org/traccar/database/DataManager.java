@@ -80,6 +80,8 @@ public class DataManager {
         return dataSource;
     }
 
+    private final Map<Long, Position> lastPositions = new HashMap<Long, Position>();
+
     private Sender gcmSender;
 
     /**
@@ -383,7 +385,13 @@ public class DataManager {
         }
     }
 
+    public Position getLatestPosition(Long deviceId){
+        return lastPositions.get(deviceId);
+    }
+
     private NamedParameterStatement.Params assignVariables(NamedParameterStatement.Params params, Position position) throws SQLException {
+
+        lastPositions.put(position.getDeviceId(), position);
 
         params.setLong("device_id", position.getDeviceId());
         params.setTimestamp("time", position.getTime());

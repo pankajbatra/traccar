@@ -16,6 +16,7 @@
 package org.traccar;
 
 import java.net.SocketAddress;
+import java.util.Date;
 import java.util.Properties;
 
 import org.jboss.netty.channel.Channel;
@@ -26,6 +27,7 @@ import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
 
 import org.traccar.database.DataManager;
+import org.traccar.model.Position;
 
 /**
  * Base class for protocol decoders
@@ -86,6 +88,29 @@ public abstract class BaseProtocolDecoder extends OneToOneDecoder {
         
         return null; // default implementation
         
+    }
+
+    public void getLastLocation(Position position, Date deviceTime) {
+        Position last = getDataManager().getLatestPosition(position.getDeviceId());
+        if (last != null) {
+            position.setTime(last.getTime());
+            position.setStartTime(last.getStartTime());
+            position.setValid(last.getValid());
+            position.setLatitude(last.getLatitude());
+            position.setLongitude(last.getLongitude());
+            position.setAltitude(last.getAltitude());
+            position.setSpeed(last.getSpeed());
+            position.setCourse(last.getCourse());
+        } else {
+            position.setTime(new Date(0));
+            position.setStartTime(new Date(0));
+        }
+
+        if (deviceTime != null) {
+            position.setTime(deviceTime);
+        } else {
+            position.setTime(new Date());
+        }
     }
 
 }

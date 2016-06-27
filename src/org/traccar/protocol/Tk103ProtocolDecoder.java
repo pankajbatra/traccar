@@ -15,10 +15,7 @@
  */
 package org.traccar.protocol;
 
-import java.util.Calendar;
 import java.util.Properties;
-import java.util.TimeZone;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.channel.Channel;
@@ -26,7 +23,7 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.database.DataManager;
-import org.traccar.helper.Log;
+import org.traccar.helper.*;
 import org.traccar.model.ExtendedInfoFormatter;
 import org.traccar.model.Position;
 
@@ -36,21 +33,46 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         super(dataManager, protocol, properties);
     }
 
-    private static final Pattern pattern = Pattern.compile(
-            "(\\d+)(,)?" +                 // Device ID
-            ".{4},?" +                     // Command
-            "\\d*" +                       // IMEI (?)
-            "(\\d{2})(\\d{2})(\\d{2}),?" + // Date (YYMMDD)
-            "([AV]),?" +                   // Validity
-            "(\\d{2})(\\d{2}\\.\\d+)" +    // Latitude (DDMM.MMMM)
-            "([NS]),?" +
-            "(\\d{3})(\\d{2}\\.\\d+)" +    // Longitude (DDDMM.MMMM)
-            "([EW]),?" +
-            "(\\d+\\.\\d)(?:\\d*,)?" +     // Speed
-            "(\\d{2})(\\d{2})(\\d{2}),?" + // Time (HHMMSS)
-            "(\\d+\\.?\\d+),?" +           // Course
-            "([0-9a-fA-F]{8})?,?" +        // State
-            "(?:L([0-9a-fA-F]+))?\\)?");   // Milage
+    private static final Pattern PATTERN = new PatternBuilder()
+            .number("(d+)(,)?")                  // device id
+            .expression(".{4},?")                // command
+            .number("d*")                        // imei?
+            .number("(dd)(dd)(dd),?")            // date
+            .expression("([AV]),?")              // validity
+            .number("(dd)(dd.d+)")               // latitude
+            .expression("([NS]),?")
+            .number("(ddd)(dd.d+)")              // longitude
+            .expression("([EW]),?")
+            .number("(d+.d)(?:d*,)?")            // speed
+            .number("(dd)(dd)(dd),?")            // time
+            .number("(d+.?d{1,2}),?")            // course
+            .number("(?:([01]{8})|(x{8}))?,?")   // state
+            .number("(?:L(x+))?")                // odometer
+            .any()
+            .text(")").optional()
+            .compile();
+
+    private static final Pattern PATTERN_BATTERY = new PatternBuilder()
+            .number("(d+),")                     // device id
+            .text("ZC20,")
+            .number("(dd)(dd)(dd),")             // date (ddmmyy)
+            .number("(dd)(dd)(dd),")             // time
+            .number("d+,")                       // battery level
+            .number("(d+),")                     // battery voltage
+            .number("(d+),")                     // power voltage
+            .number("d+")                        // installed
+            .compile();
+
+    private static final Pattern PATTERN_NETWORK = new PatternBuilder()
+            .number("(d{12})")                   // device id
+            .text("BZ00,")
+            .number("(d+),")                     // mcc
+            .number("(d+),")                     // mnc
+            .number("(x+),")                     // lac
+            .number("(x+),")                     // cid
+            .any()
+            .compile();
+
 
     @Override
     protected Object decode(
@@ -77,19 +99,78 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             }
         }
 
+        Position position = new Position();
+        ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter(getProtocol());
+
+        Parser parser = new Parser(PATTERN_BATTERY, sentence);
+        if (parser.matches()) {
+            // Get device by IMEI
+            String imei = parser.next();
+            try {
+                position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
+            } catch(Exception error) {
+                // Compatibility mode (remove in future)
+                try {
+                    position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
+                } catch(Exception error2) {
+                    Log.warning("Unknown device - " + imei);
+                    return null;
+                }
+            }
+
+            DateBuilder dateBuilder = new DateBuilder()
+                    .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
+                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+
+            getLastLocation(position, dateBuilder.getDate());
+
+            int battery = parser.nextInt();
+            if (battery != 65535) {
+                extendedInfo.set("battery", battery);
+            }
+
+            int power = parser.nextInt();
+            if (power != 65535) {
+                extendedInfo.set("power", battery);
+            }
+
+            position.setExtendedInfo(extendedInfo.toString());
+            return position;
+        }
+
+        parser = new Parser(PATTERN_NETWORK, sentence);
+        if (parser.matches()) {
+            // Get device by IMEI
+            String imei = parser.next();
+            try {
+                position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
+            } catch(Exception error) {
+                // Compatibility mode (remove in future)
+                try {
+                    position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
+                } catch(Exception error2) {
+                    Log.warning("Unknown device - " + imei);
+                    return null;
+                }
+            }
+            getLastLocation(position, null);
+
+            extendedInfo.set("mcc", parser.nextInt());
+            extendedInfo.set("mnc", parser.nextInt());
+            extendedInfo.set("lac", parser.nextInt(16));
+            extendedInfo.set("cid", parser.nextInt(16));
+
+            return position;
+        }
+
         // Parse message
-        Matcher parser = pattern.matcher(sentence);
+        parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
             return null;
         }
 
-        // Create new position
-        Position position = new Position();
-        ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter(getProtocol());
-        Integer index = 1;
-
         // Get device by IMEI
-        String imei = parser.group(index++);
+        String imei = parser.next();
         try {
             position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
         } catch(Exception error) {
@@ -102,56 +183,50 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             }
         }
 
+        int alarm = sentence.indexOf("BO01");
+        if (alarm != -1) {
+            extendedInfo.set("alarm", Integer.parseInt(sentence.substring(alarm + 4, alarm + 5)));
+        }
+
         // Date
-        Calendar time = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-        time.clear();
-        if (parser.group(index++) == null) {
-            time.set(Calendar.YEAR, 2000 + Integer.valueOf(parser.group(index++)));
-            time.set(Calendar.MONTH, Integer.valueOf(parser.group(index++)) - 1);
-            time.set(Calendar.DAY_OF_MONTH, Integer.valueOf(parser.group(index++)));
+        DateBuilder dateBuilder = new DateBuilder();
+        if (parser.next() == null) {
+            dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
         } else {
-            time.set(Calendar.DAY_OF_MONTH, Integer.valueOf(parser.group(index++)));
-            time.set(Calendar.MONTH, Integer.valueOf(parser.group(index++)) - 1);
-            time.set(Calendar.YEAR, 2000 + Integer.valueOf(parser.group(index++)));
+            dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
         }
 
         // Validity
-        position.setValid(parser.group(index++).compareTo("A") == 0);
-
-        // Latitude
-        Double latitude = Double.valueOf(parser.group(index++));
-        latitude += Double.valueOf(parser.group(index++)) / 60;
-        if (parser.group(index++).compareTo("S") == 0) latitude = -latitude;
-        position.setLatitude(latitude);
-
-        // Longitude
-        Double longitude = Double.valueOf(parser.group(index++));
-        longitude += Double.valueOf(parser.group(index++)) / 60;
-        if (parser.group(index++).compareTo("W") == 0) longitude = -longitude;
-        position.setLongitude(longitude);
+        position.setValid(parser.next().equals("A"));
+        position.setLatitude(parser.nextCoordinate());
+        position.setLongitude(parser.nextCoordinate());
 
         // Altitude
-        position.setAltitude(0.0);
+//        position.setAltitude(0.0);
 
         // Speed
-        position.setSpeed(Double.valueOf(parser.group(index++)) * 0.539957);
+        position.setSpeed(parser.nextDouble() * 0.539957);
 
         // Time
-        time.set(Calendar.HOUR_OF_DAY, Integer.valueOf(parser.group(index++)));
-        time.set(Calendar.MINUTE, Integer.valueOf(parser.group(index++)));
-        time.set(Calendar.SECOND, Integer.valueOf(parser.group(index++)));
-        position.setTime(time.getTime());
+        dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        position.setTime(dateBuilder.getDate());
 
         // Course
-        position.setCourse(Double.valueOf(parser.group(index++)));
+        position.setCourse(parser.nextDouble());
         
         // State
-        extendedInfo.set("state", parser.group(index++));
+        String status = parser.next();
+        if (status != null) {
+            extendedInfo.set("state", status); // binary status
+            int value = Integer.parseInt(new StringBuilder(status).reverse().toString(), 2);
+            extendedInfo.set("charge", !BitUtil.check(value, 0));
+            extendedInfo.set("ignition", BitUtil.check(value, 1));
+        }
+        extendedInfo.set("state", parser.next()); // hex status
 
         // Milage
-        String milage = parser.group(index++);
-        if (milage != null) {
-            extendedInfo.set("milage", Integer.parseInt(milage, 16));
+        if (parser.hasNext()) {
+            extendedInfo.set("milage", parser.nextLong(16));
         }
 
         position.setExtendedInfo(extendedInfo.toString());
