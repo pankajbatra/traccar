@@ -166,6 +166,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         // Parse message
         parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
+            Log.warning("Unable to recognize data - " + sentence);
             return null;
         }
 
