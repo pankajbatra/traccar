@@ -73,6 +73,69 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             .any()
             .compile();
 
+    private static final Pattern PATTERN_ALARM = new PatternBuilder()
+            .number("(d+)(,)?")                  // device id
+            .text("BQ81,ALARM,")                 // command
+            .number("(d+),")                     // type
+            .number("(d+),")                     // value
+            .number("(dd)(dd)(dd)?")            // date
+            .expression("([AV])?")              // validity
+            .number("(dd)(dd.d+)")               // latitude
+            .expression("([NS])?")
+            .number("(ddd)(dd.d+)")              // longitude
+            .expression("([EW])?")
+
+            .number("(d+.d)(?:d*,)?")            // speed
+            .number("(dd)(dd)(dd),?")            // time
+            .number("(d+.?d{1,2}),?")            // course
+            .number("(?:([01]{8})|(x{8}))?,?")   // state
+            .any()
+            .compile();
+
+    public static void main(String[] args) {
+        String sentence = "027028257228BQ81,ALARM,3,18," +
+                "160822" + //date 6
+                "A" + //validity 1
+                "2825.4034N" + //latitude 9+1
+                "07702.3111E" + //longitude 10+1
+                "043.7" +//speed 5
+                "042326" + //time 6
+                "346.24," + // course 6
+                "01000001"; //IO state 8
+                // 0 - ON power, 1 - off power
+                // 0 - ACC close, 1 - ACC open
+                // 0 - Did not start, 1 - just turning, 2- reverse turning
+                // 0 - Did not start, 1 - empty, 2- heavy
+                // 0 - Did not start, 1 - front door open, 2- front door close
+        Parser parser = new Parser(PATTERN_ALARM, sentence);
+        System.out.println(parser.matches());
+
+        System.out.println("IMEI:"+ parser.next());
+        System.out.println("Command:"+ parser.next());
+        System.out.println("Type:"+ parser.next());
+        System.out.println("Value:"+ parser.next());
+        DateBuilder dateBuilder = new DateBuilder();
+        dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        System.out.println("Date:" + dateBuilder.getDate());
+        System.out.println("Validity:" + parser.next().equals("A"));
+        System.out.println("Lat:"+ parser.nextCoordinate());
+        System.out.println("Long:"+ parser.nextCoordinate());
+        System.out.println("Speed:"+ parser.nextDouble() * 0.539957);
+        dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        System.out.println("Date:" + dateBuilder.getDate());
+        System.out.println("Course:" + parser.nextDouble());
+        String status = parser.next();
+        System.out.println("Status: "+status);
+        if (status != null) {
+            int value = Integer.parseInt(new StringBuilder(status).reverse().toString(), 2);
+            System.out.println("Charge: " + !BitUtil.check(value, 0));
+            System.out.println("ignition: " + BitUtil.check(value, 1));
+        }
+        if(parser.hasNext()) {
+            System.out.println(parser.next());
+        }
+    }
+
 
     @Override
     protected Object decode(
@@ -94,6 +157,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             if (type.equals("BP00")) {
                 String content = sentence.substring(sentence.length() - 3);
                 channel.write("(" + id + "AP01" + content + ")");
+                return null;
             } else if (type.equals("BP05")) {
                 channel.write("(" + id + "AP05)");
             }
