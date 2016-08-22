@@ -110,13 +110,11 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         Parser parser = new Parser(PATTERN_ALARM, sentence);
         System.out.println(parser.matches());
 
-        System.out.println("IMEI:"+ parser.next());
-        System.out.println("Command:"+ parser.next());
-        System.out.println("Type:"+ parser.next());
-        System.out.println("Value:"+ parser.next());
+
         DateBuilder dateBuilder = new DateBuilder();
         dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
         System.out.println("Date:" + dateBuilder.getDate());
+
         System.out.println("Validity:" + parser.next().equals("A"));
         System.out.println("Lat:"+ parser.nextCoordinate());
         System.out.println("Long:"+ parser.nextCoordinate());
@@ -136,6 +134,57 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
+    private boolean setImei(Parser parser, Position position){
+        String imei = parser.next();
+        try {
+            position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
+        } catch(Exception error) {
+            // Compatibility mode (remove in future)
+            try {
+                position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
+            } catch(Exception error2) {
+                Log.warning("Unknown device - " + imei);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void processLocationMessage(Parser parser, Position position, DateBuilder dateBuilder, ExtendedInfoFormatter extendedInfo){
+        position.setValid(parser.next().equals("A"));
+        position.setLatitude(parser.nextCoordinate());
+        position.setLongitude(parser.nextCoordinate());
+
+        // Speed
+        position.setSpeed(parser.nextDouble() * 0.539957);
+
+        // Time
+        dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        position.setTime(dateBuilder.getDate());
+
+        // Course
+        position.setCourse(parser.nextDouble());
+
+        // State
+        String status = parser.next();
+        if (status != null) {
+            extendedInfo.set("state", status); // binary status
+            int value = Integer.parseInt(new StringBuilder(status).reverse().toString(), 2);
+            extendedInfo.set("charge", !BitUtil.check(value, 0));
+            extendedInfo.set("ignition", BitUtil.check(value, 1));
+        }
+
+        extendedInfo.set("state", parser.next()); // hex status
+
+        // Milage
+        if (parser.hasNext()) {
+            extendedInfo.set("milage", parser.nextLong(16));
+        }
+
+        position.setExtendedInfo(extendedInfo.toString());
+
+    }
+
 
     @Override
     protected Object decode(
@@ -149,19 +198,22 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         if (beginIndex != -1) {
             sentence = sentence.substring(beginIndex + 1);
         }
-        
+
+        String id = sentence.substring(0, 12);
+        String type = sentence.substring(12, 16);
         // Send response
         if (channel != null) {
-            String id = sentence.substring(0, 12);
-            String type = sentence.substring(12, 16);
             if (type.equals("BP00")) {
                 String content = sentence.substring(sentence.length() - 3);
                 channel.write("(" + id + "AP01" + content + ")");
                 return null;
             } else if (type.equals("BP05")) {
                 channel.write("(" + id + "AP05)");
+                return null;
             }
         }
+        if(type.equals("BQ85"))
+            return null;
 
         Position position = new Position();
         ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter(getProtocol());
@@ -169,18 +221,8 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         Parser parser = new Parser(PATTERN_BATTERY, sentence);
         if (parser.matches()) {
             // Get device by IMEI
-            String imei = parser.next();
-            try {
-                position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
-            } catch(Exception error) {
-                // Compatibility mode (remove in future)
-                try {
-                    position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
-                } catch(Exception error2) {
-                    Log.warning("Unknown device - " + imei);
-                    return null;
-                }
-            }
+            if(!setImei(parser, position))
+                return null;
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -204,19 +246,9 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
 
         parser = new Parser(PATTERN_NETWORK, sentence);
         if (parser.matches()) {
-            // Get device by IMEI
-            String imei = parser.next();
-            try {
-                position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
-            } catch(Exception error) {
-                // Compatibility mode (remove in future)
-                try {
-                    position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
-                } catch(Exception error2) {
-                    Log.warning("Unknown device - " + imei);
-                    return null;
-                }
-            }
+            if(!setImei(parser, position))
+                return null;
+
             getLastLocation(position, null);
 
             extendedInfo.set("mcc", parser.nextInt());
@@ -227,6 +259,43 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             return position;
         }
 
+        parser = new Parser(PATTERN_ALARM, sentence);
+        if(parser.matches()){
+            if(!setImei(parser, position))
+                return null;
+            String alarm = parser.next();
+            int alarmType = parser.nextInt();
+            String alarmTypeString = null;
+            switch (alarmType){
+                case 0:
+                    alarmTypeString = "LOW_BATTERY";
+                    break;
+                case 1:
+                    alarmTypeString = "OVER_SPEED";
+                    break;
+                case 2:
+                    alarmTypeString = "IDLING";
+                    break;
+                case 3:
+                    alarmTypeString = "FAST_ACC";
+                    break;
+                case 4:
+                    alarmTypeString = "SHARP_SLOWDOWN";
+                    break;
+                case 5:
+                    alarmTypeString = "HIGH_TEMP";
+                    break;
+                default:
+                    alarmTypeString = String.valueOf(alarmType);
+            }
+            extendedInfo.set("alarmType", alarmTypeString);
+            extendedInfo.set("alarmValue", parser.nextLong());
+            DateBuilder dateBuilder = new DateBuilder();
+            dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            processLocationMessage(parser, position, dateBuilder, extendedInfo);
+            return position;
+        }
+
         // Parse message
         parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
@@ -234,19 +303,8 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        // Get device by IMEI
-        String imei = parser.next();
-        try {
-            position.setDeviceId(getDataManager().getDeviceByImei(imei).getId());
-        } catch(Exception error) {
-            // Compatibility mode (remove in future)
-            try {
-                position.setDeviceId(getDataManager().getDeviceByImei("000" + imei).getId());
-            } catch(Exception error2) {
-                Log.warning("Unknown device - " + imei);
-                return null;
-            }
-        }
+        if(!setImei(parser, position))
+            return null;
 
         int alarm = sentence.indexOf("BO01");
         if (alarm != -1) {
@@ -261,40 +319,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
         }
 
-        // Validity
-        position.setValid(parser.next().equals("A"));
-        position.setLatitude(parser.nextCoordinate());
-        position.setLongitude(parser.nextCoordinate());
-
-        // Altitude
-//        position.setAltitude(0.0);
-
-        // Speed
-        position.setSpeed(parser.nextDouble() * 0.539957);
-
-        // Time
-        dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-        position.setTime(dateBuilder.getDate());
-
-        // Course
-        position.setCourse(parser.nextDouble());
-        
-        // State
-        String status = parser.next();
-        if (status != null) {
-            extendedInfo.set("state", status); // binary status
-            int value = Integer.parseInt(new StringBuilder(status).reverse().toString(), 2);
-            extendedInfo.set("charge", !BitUtil.check(value, 0));
-            extendedInfo.set("ignition", BitUtil.check(value, 1));
-        }
-        extendedInfo.set("state", parser.next()); // hex status
-
-        // Milage
-        if (parser.hasNext()) {
-            extendedInfo.set("milage", parser.nextLong(16));
-        }
-
-        position.setExtendedInfo(extendedInfo.toString());
+        processLocationMessage(parser, position, dateBuilder, extendedInfo);
         return position;
     }
 
