@@ -123,7 +123,7 @@ public class FilterHandler extends OneToOneDecoder {
 
     private boolean isDataChanged(Position p){
         Position last = lastPositions.get(p.getDeviceId());
-        if(p.getExtendedInfo()==null && last.getExtendedInfo()==null)
+        if(last==null || (p.getExtendedInfo()==null && last.getExtendedInfo()==null))
             return false;
         else if (last.getExtendedInfo()==null || !last.getExtendedInfo().equalsIgnoreCase(p.getExtendedInfo()))
             return true;
