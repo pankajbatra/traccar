@@ -91,37 +91,29 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             .number("(?:([01]{8})|(x{8}))?,?")   // state
             .any()
             .compile();
+    private static final Pattern PATTERN_OBD = new PatternBuilder()
+            .number("(d+)(,)?")                  // device id
+            .text("BQ86,")                       // command
+            .number("(d+),")                     // manufacturer
+            .number("(x+),")                     // values
+            .number("(dd)(dd)(dd)?")            // date
+            .number("(dd)(dd)(dd),?")            // time
+            .number("(?:([01]{8})|(x{8}))?,?")   // state
+            .any()
+            .compile();
 
     public static void main(String[] args) {
-        String sentence = "027028257228BQ81,ALARM,3,18," +
-                "160822" + //date 6
-                "A" + //validity 1
-                "2825.4034N" + //latitude 9+1
-                "07702.3111E" + //longitude 10+1
-                "043.7" +//speed 5
-                "042326" + //time 6
-                "346.24," + // course 6
-                "01000001"; //IO state 8
-                // 0 - ON power, 1 - off power
-                // 0 - ACC close, 1 - ACC open
-                // 0 - Did not start, 1 - just turning, 2- reverse turning
-                // 0 - Did not start, 1 - empty, 2- heavy
-                // 0 - Did not start, 1 - front door open, 2- front door close
-        Parser parser = new Parser(PATTERN_ALARM, sentence);
+        String sentence = "027028257228BQ86,0,057e0b190c26380d340f5511390ec0077e0001000500004235cd,160822042330,01000001"; //IO state 8
+        Parser parser = new Parser(PATTERN_OBD, sentence);
         System.out.println(parser.matches());
-
-
+        System.out.println("IMEI:"+parser.next());
+        parser.next();
+        System.out.println("Manufacturer:" + parser.next());
+        System.out.println("Values:"+parser.next());
         DateBuilder dateBuilder = new DateBuilder();
         dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
-        System.out.println("Date:" + dateBuilder.getDate());
-
-        System.out.println("Validity:" + parser.next().equals("A"));
-        System.out.println("Lat:"+ parser.nextCoordinate());
-        System.out.println("Long:"+ parser.nextCoordinate());
-        System.out.println("Speed:"+ parser.nextDouble() * 0.539957);
         dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
         System.out.println("Date:" + dateBuilder.getDate());
-        System.out.println("Course:" + parser.nextDouble());
         String status = parser.next();
         System.out.println("Status: "+status);
         if (status != null) {
@@ -132,6 +124,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         if(parser.hasNext()) {
             System.out.println(parser.next());
         }
+        System.out.println(Integer.parseInt("0d", 16));
     }
 
     private boolean setImei(Parser parser, Position position){
@@ -206,14 +199,13 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             if (type.equals("BP00")) {
                 String content = sentence.substring(sentence.length() - 3);
                 channel.write("(" + id + "AP01" + content + ")");
-                return null;
             } else if (type.equals("BP05")) {
                 channel.write("(" + id + "AP05)");
-                return null;
             }
+//            else if (type.equals("BQ86")) {
+//                channel.write("(" + id + "AQ80,OBDS,0,2,1,30,0)");
+//            }
         }
-        if(type.equals("BQ85"))
-            return null;
 
         Position position = new Position();
         ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter(getProtocol());
@@ -296,11 +288,40 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             return position;
         }
 
+        parser = new Parser(PATTERN_OBD, sentence);
+        if(parser.matches()){
+            if(!setImei(parser, position))
+                return null;
+            String command = parser.next();
+
+            extendedInfo.set("manufacturer", parser.next());
+            String obdString = parser.next();
+            extendedInfo.set("obdValueString", obdString);
+            ObdParser.parseData(obdString, extendedInfo);
+            DateBuilder dateBuilder = new DateBuilder();
+            dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            position.setTime(dateBuilder.getDate());
+            getLastLocation(position, dateBuilder.getDate());
+            String status = parser.next();
+            if (status != null) {
+                extendedInfo.set("state", status); // binary status
+                int value = Integer.parseInt(new StringBuilder(status).reverse().toString(), 2);
+                extendedInfo.set("charge", !BitUtil.check(value, 0));
+                extendedInfo.set("ignition", BitUtil.check(value, 1));
+            }
+            return position;
+        }
+
         // Parse message
         parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
-            Log.warning("Unable to recognize data - " + sentence);
-            return null;
+            if(type.equals("BP00") || type.equals("BP05") || type.equals("BQ85") || type.equals("BR00") || type.equals("BR01"))
+                return null;
+            else {
+                Log.warning("Unable to recognize data - " + sentence);
+                return null;
+            }
         }
 
         if(!setImei(parser, position))
@@ -308,7 +329,39 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
 
         int alarm = sentence.indexOf("BO01");
         if (alarm != -1) {
-            extendedInfo.set("alarm", Integer.parseInt(sentence.substring(alarm + 4, alarm + 5)));
+            int alarmType = Integer.parseInt(sentence.substring(alarm + 4, alarm + 5));
+            String alarmTypeString = null;
+            switch (alarmType){
+                case 0:
+                    alarmTypeString = "POWER_OFF";
+                    break;
+                case 1:
+                    alarmTypeString = "ACCIDENT";
+                    break;
+                case 2:
+                    alarmTypeString = "SOS";
+                    break;
+                case 3:
+                    alarmTypeString = "ANTI_THEFT";
+                    break;
+                case 4:
+                    alarmTypeString = "LOW_SPEED";
+                    break;
+                case 5:
+                    alarmTypeString = "OVER_SPEED";
+                    break;
+                case 6:
+                    alarmTypeString = "GEOFENCE";
+                    break;
+                case 7:
+                    alarmTypeString = "VIBRATION";
+                    break;
+                case 8:
+                    alarmTypeString = "LOW_POWER";
+                    break;
+
+            }
+            extendedInfo.set("alarm", alarmTypeString);
         }
 
         // Date
