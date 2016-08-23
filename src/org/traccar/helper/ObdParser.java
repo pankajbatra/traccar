@@ -41,9 +41,13 @@ public class ObdParser {
         int cursor = 0;
         while(cursor<=obdData.length()-1){
             String pid = obdData.substring(cursor, cursor+2);
-            int dataLength = pidByteLengthMap.get(pid);
+            Integer dataLength = pidByteLengthMap.get(pid);
+            if(dataLength==null){
+                Log.warning("Unable to recognize OBD PID - " + pid +" In "+obdData);
+                return;
+            }
             String data = obdData.substring(cursor+2, cursor+2+dataLength);
-            extendedInfo.set(pidNameMap.get(pid),decodeData(pid, data));
+            extendedInfo.set(pidNameMap.get(pid), decodeData(pid, data));
             cursor=cursor + 2 + dataLength;
         }
     }
