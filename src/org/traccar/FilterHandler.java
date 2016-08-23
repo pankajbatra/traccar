@@ -120,6 +120,11 @@ public class FilterHandler extends OneToOneDecoder {
             return false;
         }
     }
+
+    private boolean isDataChanged(Position p){
+        Position last = lastPositions.get(p.getDeviceId());
+        return !(last.getExtendedInfo().equalsIgnoreCase(p.getExtendedInfo()));
+    }
     
     private boolean filter(Position p) {
         
@@ -127,14 +132,18 @@ public class FilterHandler extends OneToOneDecoder {
                 filterInvalid(p) ||
                 filterZero(p) ||
                 filterDuplicate(p);
-        
+
+        boolean isDataChanged = isDataChanged(p);
+
         if (!result && (filterLimit(p) || !filterDistance(p))) {
             result = false;
         }
+        else if (!result && isDataChanged)
+            result = false;
         else result = true;
-        
+
         if (!result) {
-            if(filterDistance(p)){
+            if(!isDataChanged && filterDistance(p)){
                 Log.info("Distance has not changed, update existing record.");
                 //update existing record
                 Position last = lastPositions.get(p.getDeviceId());
@@ -142,10 +151,9 @@ public class FilterHandler extends OneToOneDecoder {
                 p.setDatabaseId(last.getDatabaseId());
             }
             lastPositions.put(p.getDeviceId(), p);
-        } else {
-            StringBuilder s = new StringBuilder();
-            Log.info("Position filtered from " + p.getDeviceId());
         }
+        else
+            Log.info("Position filtered from " + p.getDeviceId());
 
         return result;
     }
