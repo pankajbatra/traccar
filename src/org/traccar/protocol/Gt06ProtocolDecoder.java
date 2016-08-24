@@ -21,6 +21,7 @@ import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.database.DataManager;
+import org.traccar.helper.BitUtil;
 import org.traccar.helper.Crc;
 import org.traccar.helper.Log;
 import org.traccar.model.Device;
@@ -217,14 +218,24 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
                     int flags = buf.readUnsignedByte();
 
-                    extendedInfo.set("acc", (flags & 0x2) != 0);
+                    extendedInfo.set("status", flags);
+
+                    extendedInfo.set("defense", BitUtil.check(flags, 0));
+                    extendedInfo.set("acc", BitUtil.check(flags, 1));
+                    extendedInfo.set("charge", BitUtil.check(flags, 2));
+                    extendedInfo.set("gps_tracking", BitUtil.check(flags, 6));
+                    extendedInfo.set("oil_electricity", BitUtil.check(flags, 7));
+//                    extendedInfo.set("acc", (flags & 0x2) != 0);
                     // TODO parse other flags
 
                     // Voltage
-                    extendedInfo.set("power", buf.readUnsignedByte());
+                    extendedInfo.set("battery", buf.readUnsignedByte());
 
                     // GSM signal
                     extendedInfo.set("gsm", buf.readUnsignedByte());
+
+                    //alarm
+                    extendedInfo.set("alarmValue", decodeAlarm(buf.readUnsignedByte()));
                 }
             }
 
@@ -249,5 +260,31 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
         return null;
     }
+
+    private String decodeAlarm(short value) {
+        switch (value) {
+            case 0x01:
+                return "sos";
+            case 0x03:
+            case 0x09:
+                return "vibration";
+            case 0x04:
+                return "geofence_enter";
+            case 0x05:
+                return "geofence_exit";
+            case 0x06:
+                return "overspeed";
+            case 0x0E:
+            case 0x0F:
+                return "low_battery";
+            case 0x02:
+            case 0x11:
+                return "power_cut";
+            default:
+                break;
+        }
+        return null;
+    }
+
 
 }
