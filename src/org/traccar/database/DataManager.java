@@ -406,27 +406,29 @@ public class DataManager {
         Device device = getDeviceById(position.getDeviceId());
         params.setString("gps_imei", device!=null? device.getImei() : null);
 
-        // DELME: Temporary compatibility support
-        XPath xpath = XPathFactory.newInstance().newXPath();
-        try {
-            InputSource source = new InputSource(new StringReader(position.getExtendedInfo()));
-            String index = xpath.evaluate("/info/index", source);
-            if (!index.isEmpty()) {
-                params.setLong("id", Long.valueOf(index));
-            } else {
+        if(position.getExtendedInfo()!=null) {
+            // DELME: Temporary compatibility support
+            XPath xpath = XPathFactory.newInstance().newXPath();
+            try {
+                InputSource source = new InputSource(new StringReader(position.getExtendedInfo()));
+                String index = xpath.evaluate("/info/index", source);
+                if (!index.isEmpty()) {
+                    params.setLong("id", Long.valueOf(index));
+                } else {
+                    params.setLong("id", null);
+                }
+                source = new InputSource(new StringReader(position.getExtendedInfo()));
+                String power = xpath.evaluate("/info/power", source);
+                if (!power.isEmpty()) {
+                    params.setDouble("power", Double.valueOf(power));
+                } else {
+                    params.setLong("power", null);
+                }
+            } catch (XPathExpressionException e) {
+                Log.warning("Error in XML: " + position.getExtendedInfo(), e);
                 params.setLong("id", null);
-            }
-            source = new InputSource(new StringReader(position.getExtendedInfo()));
-            String power = xpath.evaluate("/info/power", source);
-            if (!power.isEmpty()) {
-                params.setDouble("power", Double.valueOf(power));
-            } else {
                 params.setLong("power", null);
             }
-        } catch (XPathExpressionException e) {
-            Log.warning("Error in XML: " + position.getExtendedInfo(), e);
-            params.setLong("id", null);
-            params.setLong("power", null);
         }
 
         return params;

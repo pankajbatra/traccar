@@ -103,13 +103,14 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             .compile();
 
     public static void main(String[] args) {
-        String sentence = "027028257228BQ86,0,057e0b190c26380d340f5511390ec0077e0001000500004235cd,160822042330,01000001"; //IO state 8
+        String sentence = "027028257228BQ86,0,05800b160c171e0d150f5b11320e97077a000100050000423365,160822042330,01000001"; //IO state 8
         Parser parser = new Parser(PATTERN_OBD, sentence);
         System.out.println(parser.matches());
         System.out.println("IMEI:"+parser.next());
         parser.next();
         System.out.println("Manufacturer:" + parser.next());
-        System.out.println("Values:"+parser.next());
+        String obdData = parser.next();
+        System.out.println("Values:"+ obdData);
         DateBuilder dateBuilder = new DateBuilder();
         dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
         dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
@@ -124,7 +125,9 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         if(parser.hasNext()) {
             System.out.println(parser.next());
         }
-        System.out.println(Integer.parseInt("0d", 16));
+        ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter("Tk03");
+        ObdParser.parseData(obdData, extendedInfo);
+        System.out.println(extendedInfo.toString());
     }
 
     private boolean setImei(Parser parser, Position position){
@@ -310,6 +313,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
                 extendedInfo.set("charge", !BitUtil.check(value, 0));
                 extendedInfo.set("ignition", BitUtil.check(value, 1));
             }
+            position.setExtendedInfo(extendedInfo.toString());
             return position;
         }
 
