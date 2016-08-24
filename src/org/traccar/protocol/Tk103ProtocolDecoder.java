@@ -146,7 +146,8 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
         return true;
     }
 
-    private void processLocationMessage(Parser parser, Position position, DateBuilder dateBuilder, ExtendedInfoFormatter extendedInfo){
+    private void processLocationMessage(Parser parser, Position position, DateBuilder dateBuilder,
+                                        ExtendedInfoFormatter extendedInfo, boolean isAlarm){
         position.setValid(parser.next().equals("A"));
         position.setLatitude(parser.nextCoordinate());
         position.setLongitude(parser.nextCoordinate());
@@ -170,12 +171,14 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             extendedInfo.set("ignition", BitUtil.check(value, 1));
         }
 
-        if(parser.hasNext())
-            extendedInfo.set("state", parser.next()); // hex status
+        if(!isAlarm) {
+            if (parser.hasNext())
+                extendedInfo.set("state", parser.next()); // hex status
 
-        // Mileage
-        if (parser.hasNext())
-            extendedInfo.set("mileage", parser.nextLong(16));
+            // Mileage
+            if (parser.hasNext())
+                extendedInfo.set("mileage", parser.nextLong(16));
+        }
 
         position.setExtendedInfo(extendedInfo.toString());
 
@@ -287,7 +290,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             extendedInfo.set("alarmValue", parser.nextLong());
             DateBuilder dateBuilder = new DateBuilder();
             dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            processLocationMessage(parser, position, dateBuilder, extendedInfo);
+            processLocationMessage(parser, position, dateBuilder, extendedInfo, true);
             return position;
         }
 
@@ -376,7 +379,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
         }
 
-        processLocationMessage(parser, position, dateBuilder, extendedInfo);
+        processLocationMessage(parser, position, dateBuilder, extendedInfo, false);
         return position;
     }
 
