@@ -170,12 +170,12 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             extendedInfo.set("ignition", BitUtil.check(value, 1));
         }
 
-        extendedInfo.set("state", parser.next()); // hex status
+        if(parser.hasNext())
+            extendedInfo.set("state", parser.next()); // hex status
 
-        // Milage
-        if (parser.hasNext()) {
-            extendedInfo.set("milage", parser.nextLong(16));
-        }
+        // Mileage
+        if (parser.hasNext())
+            extendedInfo.set("mileage", parser.nextLong(16));
 
         position.setExtendedInfo(extendedInfo.toString());
 
