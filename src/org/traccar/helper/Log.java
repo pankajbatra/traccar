@@ -127,7 +127,7 @@ public class Log {
                 s.append(")");
             }
         }
-        getLogger().warn(s.toString());
+        getLogger().warn(s.toString(), exception);
     }
 
     public static void info(String msg) {
