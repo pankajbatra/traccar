@@ -296,6 +296,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
 
         parser = new Parser(PATTERN_OBD, sentence);
         if(parser.matches()){
+            Log.warning("OBD packet match :: "+sentence);
             if(!setImei(parser, position))
                 return null;
             String command = parser.next();
