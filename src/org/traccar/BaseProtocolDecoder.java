@@ -102,6 +102,7 @@ public abstract class BaseProtocolDecoder extends OneToOneDecoder {
             position.setSpeed(last.getSpeed());
             position.setCourse(last.getCourse());
         } else {
+            position.setValid(true);
             position.setTime(new Date(0));
             position.setStartTime(new Date(0));
         }

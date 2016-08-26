@@ -83,7 +83,10 @@ public class FilterHandler extends OneToOneDecoder {
         if (filterDuplicate) {
             Position last = lastPositions.get(position.getDeviceId());
             if (last != null) {
-                return position.getTime().equals(last.getTime());
+                return position.getTime().equals(last.getTime()) &&
+                        ((last.getExtendedInfo()==null && position.getExtendedInfo()==null) ||
+                                (position.getExtendedInfo()==null) ||
+                                (last.getExtendedInfo()!=null && last.getExtendedInfo().equalsIgnoreCase(position.getExtendedInfo())));
             } else {
                 return false;
             }
@@ -158,6 +161,11 @@ public class FilterHandler extends OneToOneDecoder {
         }
         else
             Log.info("Position filtered from " + p.getDeviceId());
+
+        if(result)
+            Log.warning("Filtering record - "+"Invalid: "+filterInvalid(p)+" Zero:"+filterZero(p)+
+                    " Duplicate:"+filterDuplicate(p)+ " DataChanged: "+isDataChanged(p) +" Limit:"+filterLimit(p)
+            +" Distance:"+filterDistance(p));
 
         return result;
     }

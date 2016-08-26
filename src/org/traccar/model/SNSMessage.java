@@ -25,12 +25,12 @@ public class SNSMessage {
         SNSMessage message = new SNSMessage();
         message.setLatitude(position.getLatitude());
         message.setLongitude(position.getLongitude());
-        message.setAltitude(position.getAltitude());
-        message.setSpeed(position.getSpeed());
-        message.setCourse(position.getCourse());
+        message.setAltitude(position.getAltitude()!=null?position.getAltitude():0);
+        message.setSpeed(position.getSpeed()!=null?position.getSpeed():0);
+        message.setCourse(position.getCourse()!=null?position.getCourse():0);
         message.setCreatedAt(position.getStartTime().getTime());
         message.setUpdatedAt(position.getTime().getTime());
-        message.setExtendedInfo(position.getExtendedInfo());
+        message.setExtendedInfo(position.getExtendedInfo()!=null?position.getExtendedInfo():"");
         message.setDeviceId(imei);
         message.setExternalId(externalId);
         message.setProvider("gps_tracker");

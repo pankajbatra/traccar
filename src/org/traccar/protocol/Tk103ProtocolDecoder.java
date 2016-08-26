@@ -103,14 +103,19 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             .compile();
 
     public static void main(String[] args) {
-        String sentence = "027028257228BQ86,0,05800b160c171e0d150f5b11320e97077a000100050000423365,160822042330,01000001"; //IO state 8
+        Position position = new Position();
+        String sentence = "027028257228BQ86,0,05490b2e0c10260d080f4611380e79077e000100050000423533,160826041647,01000000"; //IO state 8
         Parser parser = new Parser(PATTERN_OBD, sentence);
         System.out.println(parser.matches());
-        System.out.println("IMEI:"+parser.next());
-        parser.next();
+        String imei = parser.next();
+        position.setDeviceId(Long.valueOf(imei));
+        System.out.println("IMEI:"+position.getDeviceId());
+        String command = parser.next();
         System.out.println("Manufacturer:" + parser.next());
         String obdData = parser.next();
         System.out.println("Values:"+ obdData);
+        ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter("Tk03");
+        ObdParser.parseData(obdData, extendedInfo);
         DateBuilder dateBuilder = new DateBuilder();
         dateBuilder.setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
         dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
@@ -122,11 +127,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
             System.out.println("Charge: " + !BitUtil.check(value, 0));
             System.out.println("ignition: " + BitUtil.check(value, 1));
         }
-        if(parser.hasNext()) {
-            System.out.println(parser.next());
-        }
-        ExtendedInfoFormatter extendedInfo = new ExtendedInfoFormatter("Tk03");
-        ObdParser.parseData(obdData, extendedInfo);
+
         System.out.println(extendedInfo.toString());
     }
 
@@ -318,6 +319,7 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
                 extendedInfo.set("ignition", BitUtil.check(value, 1));
             }
             position.setExtendedInfo(extendedInfo.toString());
+            Log.warning("OBD packet data :: "+extendedInfo.toString());
             return position;
         }
 
