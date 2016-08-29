@@ -162,10 +162,10 @@ public class FilterHandler extends OneToOneDecoder {
         else
             Log.info("Position filtered from " + p.getDeviceId());
 
-        if(result)
-            Log.warning("Filtering record - "+"Invalid: "+filterInvalid(p)+" Zero:"+filterZero(p)+
-                    " Duplicate:"+filterDuplicate(p)+ " DataChanged: "+isDataChanged(p) +" Limit:"+filterLimit(p)
-            +" Distance:"+filterDistance(p));
+//        if(result)
+//            Log.warning("Filtering record - "+"Invalid: "+filterInvalid(p)+" Zero:"+filterZero(p)+
+//                    " Duplicate:"+filterDuplicate(p)+ " DataChanged: "+isDataChanged(p) +" Limit:"+filterLimit(p)
+//            +" Distance:"+filterDistance(p));
 
         return result;
     }

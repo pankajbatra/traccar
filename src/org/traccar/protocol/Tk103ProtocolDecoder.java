@@ -319,7 +319,6 @@ public class Tk103ProtocolDecoder extends BaseProtocolDecoder {
                 extendedInfo.set("ignition", BitUtil.check(value, 1));
             }
             position.setExtendedInfo(extendedInfo.toString());
-            Log.warning("OBD packet data :: "+extendedInfo.toString());
             return position;
         }
 
