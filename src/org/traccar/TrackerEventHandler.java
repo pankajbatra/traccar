@@ -56,6 +56,7 @@ public class TrackerEventHandler extends IdleStateAwareChannelHandler {
             id = dataManager.addPosition(position);
             if(id!=null) {
                 dataManager.sendGcmMessage(position);
+                dataManager.sendPubNubMessage(position);
                 dataManager.sendSnsMessage(position);
             }
         } catch (Exception error) {

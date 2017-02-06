@@ -30,6 +30,7 @@ import com.google.android.gcm.server.MulticastResult;
 import com.google.android.gcm.server.Sender;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.io.File;
 import java.io.IOException;
@@ -47,6 +48,10 @@ import javax.sql.DataSource;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
+
+import com.pubnub.api.PNConfiguration;
+import com.pubnub.api.PubNub;
+import com.pubnub.api.PubNubException;
 import org.traccar.helper.DriverDelegate;
 import org.traccar.helper.Log;
 import org.traccar.model.Device;
@@ -63,7 +68,8 @@ public class DataManager {
         if (properties != null) {
             initDatabase(properties);
             initGcm(properties);
-            
+            initPubNub(properties);
+
             // Refresh delay
             String refreshDelay = properties.getProperty("database.refreshDelay");
             if (refreshDelay != null) {
@@ -83,6 +89,7 @@ public class DataManager {
     private final Map<Long, Position> lastPositions = new HashMap<Long, Position>();
 
     private Sender gcmSender;
+    private PubNub pubNub;
 
     /**
      * Database statements
@@ -232,6 +239,21 @@ public class DataManager {
         }
     }
 
+    private void initPubNub(Properties properties) throws Exception {
+        String enablePubNub = properties.getProperty("pubnub.enable");
+        String pubNubPublishKey = properties.getProperty("pubnub.publishKey");
+        String pubNubSubscribeKey = properties.getProperty("pubnub.subscribeKey");
+        if (enablePubNub != null && Boolean.valueOf(enablePubNub) && pubNubSubscribeKey!=null && pubNubSubscribeKey.length()>10) {
+            PNConfiguration pnConfiguration = new PNConfiguration();
+            pnConfiguration.setPublishKey(pubNubPublishKey);
+            pnConfiguration.setSubscribeKey(pubNubSubscribeKey);
+            pnConfiguration.setSecure(true);
+            pnConfiguration.setUuid("gps.jooleh.com");
+            pubNub = new PubNub(pnConfiguration);
+            Log.info("Created PubNub publisher");
+        }
+    }
+
     private final NamedParameterStatement.ResultSetProcessor<Device> deviceResultSetProcessor = new NamedParameterStatement.ResultSetProcessor<Device>() {
         @Override
         public Device processNextRow(ResultSet rs) throws SQLException {
@@ -247,6 +269,9 @@ public class DataManager {
             }
             if(metaData.getColumnCount()>4 && metaData.getColumnLabel(5).equals("external_id")){
                 device.setExternalId(rs.getString("external_id"));
+            }
+            if(metaData.getColumnCount()>5 && metaData.getColumnLabel(6).equals("res_id")){
+                device.setResId(rs.getString("res_id"));
             }
             return device;
         }
@@ -268,6 +293,31 @@ public class DataManager {
         }
     }
 
+
+    public void sendPubNubMessage(Position position) throws SQLException, IOException {
+        Device device = getDeviceById(position.getDeviceId());
+        if(pubNub!=null && device!=null) {
+            JsonObject message = new JsonObject();
+            message.addProperty("uid", device.getUniqueId());
+            message.addProperty("latitude", position.getLatitude());
+            message.addProperty("longitude", position.getLongitude());
+            message.addProperty("time", DATE_FORMAT.format(position.getTime()));
+            message.addProperty("start_time", DATE_FORMAT.format(position.getStartTime()));
+            JsonObject pubNubPacket = new JsonObject();
+            pubNubPacket.add("data", message);
+            pubNubPacket.addProperty("collapse_key", "gps_data");
+            pubNubPacket.addProperty("time_to_live", 600);
+
+            Log.info("Sending PubNbub message:"+pubNubPacket.toString()+" to channels: "+"rider_"+device.getUniqueId() + ", "+"outlet_"+device.getResId());
+            try {
+                pubNub.publish().message(pubNubPacket).channel("rider_"+device.getUniqueId()).sync();
+                pubNub.publish().message(pubNubPacket).channel("outlet_"+device.getResId()).sync();
+            } catch (PubNubException e) {
+                Log.warning("PubNub error: ", e);
+            }
+        }
+    }
+
     public void sendGcmMessage(Position position) throws SQLException, IOException {
         if (queryGetGcmIds != null && getDeviceById(position.getDeviceId())!=null) {
             List<String> gcmIds = assignGcmVariables(queryGetGcmIds.prepare(), position).executeQuery(gcmResultSetProcessor);
@@ -279,6 +329,7 @@ public class DataManager {
                         .addData("latitude", String.valueOf(position.getLatitude()))
                         .addData("longitude", String.valueOf(position.getLongitude()))
                         .addData("time", DATE_FORMAT.format(position.getTime()))
+                        .addData("start_time", DATE_FORMAT.format(position.getStartTime()))
                         .build();
                 Log.info("Sending GCM message:"+message.getData()+" to gcmIds: "+gcmIds);
                 MulticastResult result = gcmSender.send(message, gcmIds, 1);

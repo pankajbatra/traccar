@@ -91,4 +91,14 @@ public class Device {
     public void setExternalId(String externalId) {
         this.externalId = externalId;
     }
+
+    private String resId;
+
+    public String getResId() {
+        return resId;
+    }
+
+    public void setResId(String resId) {
+        this.resId = resId;
+    }
 }
